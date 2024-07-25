@@ -48,7 +48,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     #local
-    path('api/v1/accounts/', include('accounts.urls')),
-    #path('api/v1/posts/', include('posts.urls')),
+    path('api/accounts/', include('accounts.urls')),
+    path('api/posts/', include('posts.urls')),
     #path('api/v1/comments/, include('comments.urls)),
 ]
