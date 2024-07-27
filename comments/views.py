@@ -49,7 +49,7 @@ class ListCommentView(generics.ListAPIView):
     queryset = Comment.objects.all()
     serializer_class =  CommentSerializer
     authentication_classes = [JWTAuthentication, ]
-    filter_backend = DjangoFilterBackend
+    filter_backends = [DjangoFilterBackend]
     filterset_class = CommentFilter
     
 

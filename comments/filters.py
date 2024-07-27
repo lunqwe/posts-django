@@ -6,5 +6,9 @@ class CommentFilter(FilterSet):
     date_to = DateFilter(field_name='created_at', lookup_expr='lte')
     class Meta:
         model = Comment
-        fields = ['text', 'owner', 'post', 'date_from', 'date_to']
+        fields = {'text': ['icontains', 'exact'],
+                  'owner': ['exact'],
+                  'post': ['exact'],
+                  }
+        extra_fields = ['date_from', 'date_to']
         
