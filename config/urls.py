@@ -50,5 +50,5 @@ urlpatterns = [
     #local
     path('api/accounts/', include('accounts.urls')),
     path('api/posts/', include('posts.urls')),
-    #path('api/v1/comments/, include('comments.urls)),
+    path('api/comments/', include('comments.urls')),
 ]
