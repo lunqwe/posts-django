@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post Detail</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            margin: 20px 0;
+            color: #2c3e50;
+        }
+
+        .post-detail {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .post-detail h2 {
+            margin-top: 0;
+        }
+
+        .user-name {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .text {
+            margin-top: 10px;
+            word-wrap: break-word;
+            max-width: 100%;
+        }
+
+        #commentsContainer {
+            max-width: 800px;
+            margin: 20px auto;
+        }
+
+        .comment {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        #commentInputContainer {
+            max-width: 800px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+        }
+
+        #newCommentInput {
+            flex: 1;
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        #postCommentButton {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3498db;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #postCommentButton:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <h1>Post Detail</h1>
+    <div class="post-detail">
+        <h2 id="postUsername" class="user-name"></h2>
+        <div id="postText" class="text"></div>
+    </div>
+    <div id="commentInputContainer">
+        <input type="text" id="newCommentInput" placeholder="Add a comment" />
+        <button id="postCommentButton">Post Comment</button>
+    </div>
+    <div id="commentsContainer"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const postId = window.location.pathname.split('/').pop();
+            const wsUrl = `ws://127.0.0.1:8000/ws/posts/${postId}/comments/`;
+            const socket = new WebSocket(wsUrl);
+
+            socket.onopen = function() {
+                console.log('WebSocket connection established');
+                socket.send(
+                    JSON.stringify({
+                        action: "get_comments",
+                        page_num: 1,
+                        request_id: new Date().getTime(),
+                    })
+                );
+            };
+
+            socket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                console.log(data);
+
+                if (data.event_type && data.event_type === 'display_comment') {
+                    if (Array.isArray(data.comment)) {
+                        data.comment.forEach(comment => {
+                            displayComment(comment, addAtTop = false);
+                        });
+                    } else {
+                        displayComment(data.comment);
+                    }
+                }
+            };
+
+            socket.onclose = function() {
+                console.log('WebSocket connection closed');
+            };
+
+            function displayComment(comment, addAtTop = true) {
+                const commentContainer = document.getElementById('commentsContainer');
+
+                // Проверка на существование контейнера
+                if (!commentContainer) {
+                    console.error('Comments container not found');
+                    return;
+                }
+
+                const commentElement = document.createElement('div');
+                commentElement.classList.add('comment');
+
+                const userNameElement = document.createElement('div');
+                userNameElement.classList.add('username');
+                userNameElement.textContent = comment.username;
+
+                const textElement = document.createElement('div');
+                textElement.classList.add('text');
+                textElement.textContent = comment.text;
+
+                commentElement.appendChild(userNameElement);
+                commentElement.appendChild(textElement);
+
+                if (addAtTop) {
+                    commentContainer.insertBefore(commentElement, commentContainer.firstChild);
+                } else {
+                    commentContainer.appendChild(commentElement);
+                }
+            }
+
+            document.getElementById('postCommentButton').addEventListener('click', async () => {
+                const textInput = document.getElementById('newCommentInput');
+                const text = textInput.value.trim();
+
+                if (text) {
+                    try {
+                        const accessToken = localStorage.getItem('access');
+                        const response = await fetch(`http://127.0.0.1:8000/api/comments/create/`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${accessToken}`
+                            },
+                            body: JSON.stringify({ text, post: postId })
+                        });
+
+                        if (response.status === 401) {
+                            const newAccessToken = await refreshToken();
+                            await fetch(`http://127.0.0.1:8000/api/comments/create/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${newAccessToken}`
+                                },
+                                body: JSON.stringify({ text, post: postId })
+                            });
+                        } else if (!response.ok) {
+                            throw new Error('Failed to post comment');
+                        }
+
+                        textInput.value = '';
+                    } catch (error) {
+                        console.error('Error:', error);
+                    }
+                }
+            });
+
+            async function refreshToken() {
+                const refreshToken = localStorage.getItem('refresh');
+                if (!refreshToken) {
+                    throw new Error('No refresh token available');
+                }
+
+                const response = await fetch('http://127.0.0.1:8000/api/token/refresh/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ refresh: refreshToken }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to refresh token');
+                }
+
+                const data = await response.json();
+                localStorage.setItem('access', data.access);
+                localStorage.setItem('refresh', data.refresh);
+                return data.access;
+            }
+
+            async function loadPostData() {
+                try {
+                    const response = await fetch(`http://127.0.0.1:8000/api/posts/details/${postId}/`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch post data');
+                    }
+
+                    const post = await response.json();
+                    document.getElementById('postUsername').textContent = post.owner.username;
+                    document.getElementById('postText').textContent = post.text;
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            }
+
+            loadPostData();
+        });
+    </script>
+</body>
+</html>

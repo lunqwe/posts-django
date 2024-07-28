@@ -12,7 +12,7 @@ from posts.permissions import IsOwner
 from .models import Comment
 from .serializers import CreateCommentSerializer, CommentSerializer
 from .filters import CommentFilter
-
+from .tasks import get_comments, create_comment
 
 class CreateCommentView(generics.CreateAPIView):
     queryset = Comment.objects.all()
@@ -20,23 +20,24 @@ class CreateCommentView(generics.CreateAPIView):
     authentication_classes = [JWTAuthentication, ]
     permission_classes = [IsAuthenticated, ]
     
+    def perform_create(self, serializer):
+        comment_data = serializer.validated_data
+        serialized_comment_data = CommentSerializer(comment_data).data
+        owner_id = self.request.user.id
+        result = create_comment.apply_async(args=[owner_id, serialized_comment_data]).get()
+       
+        return result
+    
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        try:
-            if serializer.is_valid(raise_exception=True):
-                comment_text = serializer.validated_data.get('text')
-                if check_for_obscence(comment_text):
-                    user = User.objects.get(id=self.request.user.id)
-                    serializer.save(owner=user)
-                    return Response({'detail': 'Comment created successfully!', 'comment': CommentSerializer(data=serializer.data).initial_data}, status=status.HTTP_201_CREATED)
-                else:
-                    return Response({'detail': 'Your comment is obscene. The comment will not be created.'}, status=status.HTTP_400_BAD_REQUEST)
-        except serializers.ValidationError as e:
-            data = {
-                'status': 'error',
-                'detail': error_detail(e)
-                }
-            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)   
+        serializer.is_valid(raise_exception=True)
+        response_data = self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        if response_data.get('status') == 'success':
+            return Response(data=response_data, status=status.HTTP_201_CREATED, headers=headers)    
+        else:
+            return Response(data=response_data, status=status.HTTP_400_BAD_REQUEST, headers=headers)
+
         
 class RetrieveCommentView(generics.RetrieveAPIView):
     queryset = Comment.objects.all()

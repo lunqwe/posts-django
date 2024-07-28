@@ -23,6 +23,8 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from django.conf import settings
+from django.conf.urls.static import static
 
 #drf-yasg setup
 schema_view = get_schema_view(
@@ -35,9 +37,13 @@ schema_view = get_schema_view(
    permission_classes=(permissions.AllowAny,),
 )
 
+from posts.views import auth, posts, post_details
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('auth/', auth, name="auth"),
+    path('posts/', posts, name='posts'),
+    path('post/<int:id>', post_details, name='post_details'),
     
     #drf-yasg
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
@@ -52,3 +58,4 @@ urlpatterns = [
     path('api/posts/', include('posts.urls')),
     path('api/comments/', include('comments.urls')),
 ]
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

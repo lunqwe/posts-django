@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            margin: 20px 0;
+            color: #2c3e50;
+        }
+
+        #messageContainer {
+            display: flex;
+            justify-content: center;
+            margin: 20px;
+        }
+
+        #messageInput {
+            width: 300px;
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        #sendMessageButton {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3498db;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #sendMessageButton:hover {
+            background-color: #2980b9;
+        }
+
+        #posts {
+            margin: 20px auto;
+            width: 80%;
+            max-width: 800px;
+        }
+
+        .post {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-name {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .email {
+            color: #7f8c8d;
+        }
+
+        .text {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Page</h1>
+    <div id="messageContainer">
+        <input type="text" id="messageInput" placeholder="Type a message" />
+        <button id="sendMessageButton">Send Message</button>
+    </div>
+
+    <div id="posts"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const wsUrl = 'ws://127.0.0.1:8000/ws/posts/'; // Замените на ваш WebSocket URL
+            const socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function(e) {
+                socket.send(
+                        JSON.stringify({
+                            action: "get_posts",
+                            page_num: 1,
+                            request_id: new Date().getTime(),
+                        })
+                    );
+            };
+
+            socket.onmessage = function (e) {
+                const data = JSON.parse(e.data);
+                console.log(data);
+
+                if (data.event_type && data.event_type === 'display_post') {
+                    if (Array.isArray(data.post)) {
+                        data.post.forEach(post => {
+                            displayPost(post, addAtTop = false);
+                        });
+                    } else {
+                        displayPost(data.post);
+                    }
+                }
+            };
+        });
+
+        function displayPost(post, addAtTop = true) {
+            const postContainer = document.getElementById('posts');
+            const postElement = document.createElement('div');
+            postElement.classList.add('post');
+
+            const postLink = document.createElement('a');
+            postLink.href = `/post/${post.id}`;
+            postLink.style.display = 'block';
+
+            const userNameElement = document.createElement('div');
+            userNameElement.classList.add('user-name');
+            userNameElement.textContent = post.username;
+
+            const textElement = document.createElement('div');
+            textElement.classList.add('text');
+            textElement.textContent = post.text;
+
+            postLink.appendChild(userNameElement);
+            postLink.appendChild(textElement);
+            postElement.appendChild(postLink);
+
+            if (addAtTop) {
+                postContainer.insertBefore(postElement, postContainer.firstChild);
+            } else {
+                postContainer.appendChild(postElement);
+            }
+        }
+
+        async function refreshToken() {
+            const refreshToken = localStorage.getItem('refresh');
+            if (!refreshToken) {
+                throw new Error('No refresh token available');
+            }
+
+            const response = await fetch('http://127.0.0.1:8000/api/token/refresh/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ refresh: refreshToken }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to refresh token');
+            }
+
+            const data = await response.json();
+            localStorage.setItem('access', data.access);
+            localStorage.setItem('refresh', data.refresh);
+            return data.access;
+        }
+
+        // Функция для отправки сообщений
+        async function sendMessage(text) {
+            const accessToken = localStorage.getItem('access');
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            };
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/posts/create/', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ text })
+                });
+
+                if (response.status === 401) { // Unauthorized, token might be expired
+                    const newAccessToken = await refreshToken();
+                    headers['Authorization'] = `Bearer ${newAccessToken}`;
+                    // Retry the request with new token
+                    await fetch('http://127.0.0.1:8000/api/posts/create/', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({ text })
+                    });
+                } else if (!response.ok) {
+                    throw new Error('Failed to send message');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Обработка нажатия кнопки отправки сообщения
+        document.getElementById('sendMessageButton').addEventListener('click', () => {
+            const textInput = document.getElementById('messageInput');
+            const text = textInput.value;
+
+            if (text.trim()) {
+                sendMessage(text);
+                textInput.value = ''; // Очистить поле ввода
+            }
+        });
+    </script>
+</body>
+</html>

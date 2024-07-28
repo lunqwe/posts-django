@@ -1,3 +1,4 @@
+from django.shortcuts import render
 from rest_framework import generics, status, serializers 
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -11,6 +12,16 @@ from .models import Post
 from .serializers import PostSerializer
 from .utils import check_for_obscence
 from .filters import PostFilter
+from .tasks import create_post
+
+def auth(request):
+    return render(request, template_name='auth.html')
+
+def posts(request):
+    return render(request, template_name='posts.html')
+
+def post_details(request, id):
+    return render(request, context={'post_id': id}, template_name='post_details.html')
 
 # Create your views here.
 class CreatePostView(generics.CreateAPIView):
@@ -19,24 +30,37 @@ class CreatePostView(generics.CreateAPIView):
     authentication_classes = (JWTAuthentication, )
     permission_classes = (IsAuthenticated, )
     
+    # def create(self, request, *args, **kwargs):
+    #     serializer = self.get_serializer(data=request.data)
+    #     try:
+    #         if serializer.is_valid(raise_exception=True):
+    #             owner_id = self.request.user.id
+    #             post_data = serializer.validated_data
+    #             return create_post.apply_async(args=[owner_id, post_data])
+            
+    #     except serializers.ValidationError as e:
+    #         data = {
+    #             'status': 'error',
+    #             'detail': error_detail(e)
+    #             }
+    #         return Response(data=data, status=status.HTTP_400_BAD_REQUEST)   
+    def perform_create(self, serializer):
+        post_data = serializer.validated_data
+        owner_id = self.request.user.id
+        result = create_post.apply_async(args=[owner_id, post_data]).get()
+       
+        return result
+    
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        try:
-            if serializer.is_valid(raise_exception=True):
-                post_text = serializer.validated_data.get('text')
-                if check_for_obscence(post_text):
-                    user = User.objects.get(id=self.request.user.id)
-                    serializer.save(owner=user)
-                    return Response({'detail': 'Post created successfully!', 'post': serializer.data}, status=status.HTTP_201_CREATED)
-                else:
-                    return Response({'detail': "Your post is obscene. The post will not be created."}, status=status.HTTP_400_BAD_REQUEST)
-            
-        except serializers.ValidationError as e:
-            data = {
-                'status': 'error',
-                'detail': error_detail(e)
-                }
-            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)   
+        serializer.is_valid(raise_exception=True)
+        response_data = self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        if response_data.get('status') == 'success':
+            return Response(data=response_data, status=status.HTTP_201_CREATED, headers=headers)    
+        else:
+            return Response(data=response_data, status=status.HTTP_400_BAD_REQUEST, headers=headers)
+
             
 
 class RetrievePostView(generics.RetrieveAPIView):
