@@ -17,14 +17,17 @@ class CreatePostViewTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.url = reverse('create-post')
     
-    def test_create_post_success(self):
+    @patch('posts.views.create_post.apply_async')
+    @patch('posts.utils.check_for_obscence', return_value=True)
+    def test_create_post_success(self, mock_check_obscence, mock_create_post):
         data = {'text': 'Some normal text'}
-        with patch('posts.utils.check_for_obscence', return_value=True):
-            response = self.client.post(self.url, data, format='json')
+        mock_task_result = mock_create_post.return_value
+        mock_task_result.get.return_value = {'status':'success', 'detail': 'Post created successfully!', 'post': {'id': 1, 'text': 'Some normal text'}}
+        response = self.client.post(self.url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['detail'], 'Post created successfully!')
-        self.assertEqual(Post.objects.count(), 1)
-        self.assertEqual(Post.objects.get().text, 'Some normal text')
+        mock_create_post.assert_called_once_with(args=[self.user.id, data])
+        mock_task_result.get.assert_called_once()
     
     def test_create_post_with_obscene_content(self):
         data = {'text': 'Some obscene text'}
@@ -66,7 +69,7 @@ class RetrievePostViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['id'], self.post.id)
         self.assertEqual(response.data['text'], self.post.text)
-        self.assertEqual(response.data['owner'], self.user.id)
+        self.assertEqual(response.data['owner'].get('id'), self.user.id)
         
         
 class ListPostViewTests(APITestCase):
@@ -85,17 +88,17 @@ class ListPostViewTests(APITestCase):
     def test_retrieve_all_posts(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3) 
+        self.assertEqual(len(response.data.get('results')), 3) 
 
     def test_filter_posts(self):
         response = self.client.get(self.url, {'text__icontains': 'Post'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2) 
+        self.assertEqual(len(response.data.get('results')), 2) 
 
     def test_ensure_correct_data(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        for post in response.data:
+        for post in response.data.get('results'):
             self.assertIn('id', post)
             self.assertIn('text', post)
             self.assertIn('owner', post)
@@ -113,20 +116,20 @@ class UpdatePostViewTests(APITestCase):
 
     def test_update_post_success(self):
         data = {'text': 'Updated post'}
-        response = self.client.put(self.url, data, format='json')
+        response = self.client.patch(self.url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.post.refresh_from_db()
         self.assertEqual(self.post.text, 'Updated post')
     
     def test_update_post_with_invalid_data(self):
         data = {'text': ''}  # Assuming text field cannot be empty
-        response = self.client.put(self.url, data, format='json')
+        response = self.client.patch(self.url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
     
     def test_update_post_without_authentication(self):
         self.client.logout()
         data = {'text': 'Updated post'}
-        response = self.client.put(self.url, data, format='json')
+        response = self.client.patch(self.url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
     
     def test_update_post_by_non_owner(self):

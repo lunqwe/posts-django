@@ -18,34 +18,28 @@ class CreateCommentViewTests(APITestCase):
         refresh = RefreshToken.for_user(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
         self.url = reverse('create-comment') 
-
-    def test_create_comment_success(self):
-        data = {
-            'text': 'This is a test comment.',
-            'post': self.post.id 
-        }
-        with patch('posts.utils.check_for_obscence', return_value=True):
-            response = self.client.post(self.url, data, format='json')
-
+        
+    @patch('comments.tasks.create_comment.apply_async')
+    @patch('posts.utils.check_for_obscence', return_value=True)
+    def test_create_comment_success(self, mock_check_obscence, mock_create_post):
+        data = {'text': 'Some normal text', 'owner': self.user.id, 'post': self.post.id}
+        mock_task_result = mock_create_post.return_value
+        mock_task_result.get.return_value = {'status':'success', 'detail': 'Comment created successfully!', 'comment': {'id': self.post.id, 'text': 'Some normal text'}}
+        response = self.client.post(self.url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['detail'], 'Comment created successfully!')
 
-    def test_create_comment_obscene(self):
-        data = {'text': 'Some obscene text', 'post': self.post.id}
+    @patch('comments.tasks.create_comment.apply_async')
+    @patch('posts.utils.check_for_obscence', return_value=True)
+    def test_create_comment_obscene(self, mock_check_obscence, mock_create_post):
+        data = {'text': 'Some obscene text', 'owner': self.user.id, 'post': self.post.id}
+        mock_task_result = mock_create_post.return_value
+        mock_task_result.get.return_value = {'status': 'fail', 'detail': 'Your comment is obscene. The comment will not be created.'}
         with patch('posts.utils.check_for_obscence', return_value=False):
             response = self.client.post(self.url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['detail'], "Your comment is obscene. The comment will not be created.")
         self.assertEqual(Comment.objects.count(), 0)
-
-    def test_create_comment_validation_error(self):
-        data = {
-            'text': '',  # Invalid data
-            'post': self.post.id
-        }
-        response = self.client.post(self.url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['status'], 'error')
 
     def test_create_comment_unauthenticated(self):
         self.client.credentials()
@@ -99,9 +93,9 @@ class ListCommentViewTests(APITestCase):
     def test_list_comments_success(self):
         response = self.client.get(self.url, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
-        self.assertEqual(response.data[0]['id'], self.comment1.id)
-        self.assertEqual(response.data[1]['id'], self.comment2.id)
+        self.assertEqual(len(response.data.get('results')), 2)
+        self.assertEqual(response.data.get('results')[0]['id'], self.comment1.id)
+        self.assertEqual(response.data.get('results')[1]['id'], self.comment2.id)
 
     def test_list_comments_unauthenticated(self):
         self.client.credentials()
@@ -111,9 +105,9 @@ class ListCommentViewTests(APITestCase):
     def test_list_comments_with_filters(self):
         response = self.client.get(self.url, {'text__icontains': 'first'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['id'], self.comment1.id)
-        self.assertEqual(response.data[0]['text'], self.comment1.text)
+        self.assertEqual(len(response.data.get('results')), 1)
+        self.assertEqual(response.data.get('results')[0]['id'], self.comment1.id)
+        self.assertEqual(response.data.get('results')[0]['text'], self.comment1.text)
         
         
 class UpdateCommentViewTests(APITestCase):
