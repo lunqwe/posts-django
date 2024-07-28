@@ -9,10 +9,11 @@ from accounts.models import User
 from accounts.utils import error_detail
 from .permissions import IsOwner
 from .models import Post
-from .serializers import PostSerializer
+from .serializers import PostSerializer, CreatePostSerializer
 from .utils import check_for_obscence
 from .filters import PostFilter
 from .tasks import create_post
+from .pagination import ItemPagination
 
 def auth(request):
     return render(request, template_name='auth.html')
@@ -26,24 +27,10 @@ def post_details(request, id):
 # Create your views here.
 class CreatePostView(generics.CreateAPIView):
     queryset = Post.objects.all()
-    serializer_class = PostSerializer
+    serializer_class = CreatePostSerializer
     authentication_classes = (JWTAuthentication, )
     permission_classes = (IsAuthenticated, )
-    
-    # def create(self, request, *args, **kwargs):
-    #     serializer = self.get_serializer(data=request.data)
-    #     try:
-    #         if serializer.is_valid(raise_exception=True):
-    #             owner_id = self.request.user.id
-    #             post_data = serializer.validated_data
-    #             return create_post.apply_async(args=[owner_id, post_data])
-            
-    #     except serializers.ValidationError as e:
-    #         data = {
-    #             'status': 'error',
-    #             'detail': error_detail(e)
-    #             }
-    #         return Response(data=data, status=status.HTTP_400_BAD_REQUEST)   
+
     def perform_create(self, serializer):
         post_data = serializer.validated_data
         owner_id = self.request.user.id
@@ -70,10 +57,11 @@ class RetrievePostView(generics.RetrieveAPIView):
     
 
 class ListPostView(generics.ListAPIView):
-    queryset = Post.objects.all()
+    queryset = Post.objects.all().order_by('created_at')
     serializer_class = PostSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = PostFilter
+    pagination_class = ItemPagination
     
     
 class UpdatePostView(generics.UpdateAPIView):

@@ -1,18 +1,15 @@
-from rest_framework import generics, status, serializers 
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 
-
-from accounts.models import User
-from accounts.utils import error_detail
-from posts.utils import check_for_obscence
+from posts.pagination import ItemPagination
 from posts.permissions import IsOwner
 from .models import Comment
 from .serializers import CreateCommentSerializer, CommentSerializer
 from .filters import CommentFilter
-from .tasks import get_comments, create_comment
+from .tasks import create_comment
 
 class CreateCommentView(generics.CreateAPIView):
     queryset = Comment.objects.all()
@@ -47,11 +44,12 @@ class RetrieveCommentView(generics.RetrieveAPIView):
         
 
 class ListCommentView(generics.ListAPIView):
-    queryset = Comment.objects.all()
+    queryset = Comment.objects.all().order_by('created_at')
     serializer_class =  CommentSerializer
     authentication_classes = [JWTAuthentication, ]
     filter_backends = [DjangoFilterBackend]
     filterset_class = CommentFilter
+    pagination_class = ItemPagination
     
 
 class UpdateCommentView(generics.UpdateAPIView):
