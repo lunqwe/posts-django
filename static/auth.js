@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(data.user.tokens.access)
             localStorage.setItem('access', data.user.tokens.access);
             localStorage.setItem('refresh', data.user.tokens.refresh);
-            alert(data);
+            alert("Login success!");
             window.location.href = 'http://localhost:8000/posts/';
         } catch (error) {
             alert('Login failed!');
