@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('password').value;
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/accounts/login/', {
+            const response = await fetch('http://localhost:8000/api/accounts/login/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -37,8 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(data.user.tokens.access)
             localStorage.setItem('access', data.user.tokens.access);
             localStorage.setItem('refresh', data.user.tokens.refresh);
-            alert('Logged in successfully!');
-            window.location.href = 'http://127.0.0.1:8000/posts/';
+            alert(data);
+            window.location.href = 'http://localhost:8000/posts/';
         } catch (error) {
             alert('Login failed!');
         }

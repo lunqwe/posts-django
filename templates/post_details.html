@@ -103,7 +103,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const postId = window.location.pathname.split('/').pop();
-            const wsUrl = `ws://127.0.0.1:8000/ws/posts/${postId}/comments/`;
+            const wsUrl = `ws://localhost:8000/ws/posts/${postId}/comments/`;
             const socket = new WebSocket(wsUrl);
 
             socket.onopen = function() {
@@ -173,7 +173,7 @@
                 if (text) {
                     try {
                         const accessToken = localStorage.getItem('access');
-                        const response = await fetch(`http://127.0.0.1:8000/api/comments/create/`, {
+                        const response = await fetch(`http://localhost:8000/api/comments/create/`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -184,7 +184,7 @@
 
                         if (response.status === 401) {
                             const newAccessToken = await refreshToken();
-                            await fetch(`http://127.0.0.1:8000/api/comments/create/`, {
+                            await fetch(`http://localhost:8000/api/comments/create/`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -209,7 +209,7 @@
                     throw new Error('No refresh token available');
                 }
 
-                const response = await fetch('http://127.0.0.1:8000/api/token/refresh/', {
+                const response = await fetch('http://localhost:8000/api/token/refresh/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -229,7 +229,7 @@
 
             async function loadPostData() {
                 try {
-                    const response = await fetch(`http://127.0.0.1:8000/api/posts/details/${postId}/`);
+                    const response = await fetch(`http://localhost:8000/api/posts/details/${postId}/`);
                     if (!response.ok) {
                         throw new Error('Failed to fetch post data');
                     }

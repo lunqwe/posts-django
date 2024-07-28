@@ -1,13 +1,7 @@
 from transformers import BertForSequenceClassification, BertTokenizer, TextClassificationPipeline
 """ 
 This file is about using Hugging Face models to create required project functionality
-
-Models:
-1. https://huggingface.co/JungleLee/bert-toxic-comment-classification
-
-I used this model to check posts and comments for obscene text (check_for_obscence function)
-
-2. 
+https://huggingface.co/JungleLee/bert-toxic-comment-classification
 
 """
 

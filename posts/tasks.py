@@ -15,7 +15,6 @@ from .models import Post
 
 @app.task()
 def get_posts_task(page_num: int) -> list:
-    print(1)
     try:
         queryset = Post.objects.all().order_by('created_at')[::-1]
         paginator = Paginator(queryset, 25)
@@ -46,6 +45,7 @@ def create_post(owner_id: int, post_data: dict, *args):
                     {
                         'type': 'add_post',
                         'post': {
+                            'id': post.id,
                             'username': post.owner.username,
                             'text': post.text,
                         }
