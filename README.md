@@ -1,4 +1,7 @@
-# Test Task for Starnavi
+# Blog
+
+This project aims to create a user blog. Using Websocket and Celery, real-time display of created comments was implemented.
+
 ## Instructions
 
 **Running the Application:**
